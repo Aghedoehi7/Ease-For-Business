@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <rect width="256" height="256" fill="#fff"/>
+  <rect x="24" y="24" width="208" height="208" rx="20" fill="#ff6a00"/>
+  <text x="50%" y="55%" font-family="Arial, Helvetica, sans-serif" font-size="36" fill="#fff" font-weight="700" text-anchor="middle">EASE</text>
+  <text x="50%" y="78%" font-family="Arial, Helvetica, sans-serif" font-size="18" fill="#fff" text-anchor="middle">for Business</text>
+</svg>
