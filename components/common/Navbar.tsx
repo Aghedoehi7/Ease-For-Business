@@ -36,16 +36,17 @@ export default function Navbar() {
   ];
 
   return (
-    <nav className="bg-gradient-to-r from-orange-600 to-red-600 text-white shadow-lg">
+    <nav className="fixed top-0 left-0 w-full z-50 bg-white text-gray-800 shadow-lg">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-16">
+        <div className="flex justify-between items-center h-16 md:h-20">
           {/* Logo */}
-          <Link href="/" className="flex items-center group">
-            <img src="/logo.png" alt="Ease for Business" className="w-10 h-10 rounded-md bg-white p-1 object-contain group-hover:scale-105 transition-transform" />
-            <div className="ml-3">
-              <div className="text-2xl font-bold text-white">Ease for Business</div>
-              <span className="text-sm font-semibold hidden sm:inline text-orange-100">Your business companion</span>
-            </div>
+          <Link href="/" className="flex items-center group shrink-0">
+            <img
+              src="/logo.svg"
+              alt="Ease for Business"
+              className="h-24 w-auto sm:h-28 object-contain drop-shadow-[0_4px_6px_rgba(0,0,0,0.12)] group-hover:scale-[1.03] transition-transform"
+              style={{ marginLeft: '-6px' }}
+            />
           </Link>
 
           {/* Desktop Navigation */}
@@ -54,7 +55,7 @@ export default function Navbar() {
               <Link
                 key={item.name}
                 href={item.href}
-                className="hover:text-yellow-200 transition-colors font-medium"
+                className="text-gray-700 hover:text-orange-600 transition-colors font-medium"
               >
                 {item.name}
               </Link>
@@ -63,7 +64,7 @@ export default function Navbar() {
             {authUser ? (
               <div className="flex items-center gap-4 pl-8 border-l border-orange-400">
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 bg-white text-orange-600 rounded-full flex items-center justify-center font-bold text-sm">
+                    <div className="w-8 h-8 bg-[#FF6A00] text-white rounded-full flex items-center justify-center font-bold text-sm">
                     {authUser.name.charAt(0).toUpperCase()}
                   </div>
                   <div className="hidden lg:block">
@@ -73,7 +74,7 @@ export default function Navbar() {
                 </div>
                 <button
                   onClick={handleLogout}
-                  className="bg-white text-orange-600 px-3 py-1 rounded-lg text-sm font-semibold hover:bg-yellow-100 transition-colors flex items-center gap-1"
+                  className="bg-gradient-to-r from-[#FF6A00] to-[#FF8A00] text-white px-3 py-1 rounded-lg text-sm font-semibold hover:opacity-95 transition-all flex items-center gap-1 shadow-md"
                 >
                   <LogOut size={16} /> Logout
                 </button>
@@ -82,13 +83,13 @@ export default function Navbar() {
               <div className="flex items-center gap-3">
                 <Link
                   href="/auth/signin"
-                  className="text-orange-100 hover:text-white transition-colors font-medium"
+                  className="text-gray-700 hover:text-orange-600 transition-colors font-medium"
                 >
                   Sign In
                 </Link>
                 <Link
                   href="/auth/signup"
-                  className="bg-white text-orange-600 px-4 py-2 rounded-lg font-semibold hover:bg-yellow-100 transition-colors"
+                  className="bg-gradient-to-r from-[#FF6A00] to-[#FF8A00] text-white px-4 py-2 rounded-lg font-semibold hover:opacity-95 transition-all shadow-md"
                 >
                   Sign Up
                 </Link>
@@ -112,7 +113,7 @@ export default function Navbar() {
               <Link
                 key={item.name}
                 href={item.href}
-                className="block px-3 py-2 rounded-md hover:bg-orange-700 transition-colors"
+                className="block px-3 py-2 rounded-md text-gray-700 hover:bg-gray-100 transition-colors"
                 onClick={() => setIsOpen(false)}
               >
                 {item.name}
@@ -123,7 +124,7 @@ export default function Navbar() {
               <>
                 <div className="px-3 py-3 border-t border-orange-400 mt-4">
                   <div className="flex items-center gap-2 mb-3">
-                    <div className="w-8 h-8 bg-white text-orange-600 rounded-full flex items-center justify-center font-bold text-sm">
+                      <div className="w-8 h-8 bg-[#FF6A00] text-white rounded-full flex items-center justify-center font-bold text-sm">
                       {authUser.name.charAt(0).toUpperCase()}
                     </div>
                     <div>
@@ -134,7 +135,7 @@ export default function Navbar() {
                 </div>
                 <button
                   onClick={handleLogout}
-                  className="w-full mt-2 bg-white text-orange-600 px-4 py-2 rounded-lg font-semibold hover:bg-yellow-100 transition-colors flex items-center justify-center gap-1"
+                  className="w-full mt-2 bg-gradient-to-r from-[#FF6A00] to-[#FF8A00] text-white px-4 py-2 rounded-lg font-semibold hover:opacity-95 transition-all flex items-center justify-center gap-1 shadow-md"
                 >
                   <LogOut size={18} /> Logout
                 </button>
@@ -143,14 +144,14 @@ export default function Navbar() {
               <>
                 <Link
                   href="/auth/signin"
-                  className="block px-3 py-2 rounded-md hover:bg-orange-700 transition-colors"
+                  className="block px-3 py-2 rounded-md text-gray-700 hover:bg-gray-100 transition-colors"
                   onClick={() => setIsOpen(false)}
                 >
                   Sign In
                 </Link>
                 <Link
                   href="/auth/signup"
-                  className="block w-full mt-2 bg-white text-orange-600 px-4 py-2 rounded-lg font-semibold hover:bg-yellow-100 transition-colors text-center"
+                  className="block w-full mt-2 bg-gradient-to-r from-[#FF6A00] to-[#FF8A00] text-white px-4 py-2 rounded-lg font-semibold hover:opacity-95 transition-all text-center shadow-md"
                   onClick={() => setIsOpen(false)}
                 >
                   Sign Up

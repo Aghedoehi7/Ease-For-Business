@@ -20,6 +20,12 @@ export const metadata: Metadata = {
   title: "Ease for Business - Inventory & AI Chatbot for Nigerian SMEs",
   description: "Ease for Business delivers modern inventory management and AI-powered business solutions for Nigerian SMEs. Manage stock, track sales, and get intelligent business insights.",
   keywords: ["inventory", "SME", "Nigeria", "chatbot", "business management"],
+  manifest: "/manifest.json",
+  icons: {
+    icon: "/icons/icon-512.png",
+    shortcut: "/icons/icon-512.png",
+    apple: "/icons/icon-512.png",
+  },
 };
 
 export default function RootLayout({
@@ -29,12 +35,16 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <meta name="theme-color" content="#FF6A00" />
+        <link rel="manifest" href="/manifest.json" />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased flex flex-col min-h-screen`}
       >
         <SettingsProvider>
           <Navbar />
-          <main className="flex-1">
+          <main className="flex-1 pt-16 md:pt-20">
             {children}
           </main>
           <Footer />
