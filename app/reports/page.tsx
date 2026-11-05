@@ -15,11 +15,20 @@ type ProfitRecord = {
   profit: number;
 };
 
+type SoldItemRecord = {
+  date: string;
+  name: string;
+  quantity: number;
+  unitPrice: number;
+  total: number;
+};
+
 type ProfitReport = {
   totalSales: number;
   totalExpenses: number;
   profit: number;
   dailyRecords: ProfitRecord[];
+  soldItems: SoldItemRecord[];
 };
 
 function generateCSV(products: any[]) {
@@ -215,38 +224,78 @@ export default function ReportsPage() {
           ) : loadingReport ? (
             <div className="rounded-xl border border-gray-200 bg-gray-50 p-5 text-gray-600">Loading profit report…</div>
           ) : report ? (
-            <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
-              <table className="min-w-full divide-y divide-gray-200 text-left text-sm">
-                <thead className="bg-gray-50 text-gray-600">
-                  <tr>
-                    <th className="px-4 py-3 font-medium">Date</th>
-                    <th className="px-4 py-3 font-medium">Sales</th>
-                    <th className="px-4 py-3 font-medium">Expenses</th>
-                    <th className="px-4 py-3 font-medium">Profit</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {report.dailyRecords.length > 0 ? (
-                    report.dailyRecords.map((record) => (
-                      <tr key={record.date} className="hover:bg-gray-50">
-                        <td className="px-4 py-4 text-gray-900">{record.date}</td>
-                        <td className="px-4 py-4 text-gray-900">{formatCurrency(record.salesTotal)}</td>
-                        <td className="px-4 py-4 text-gray-900">{formatCurrency(record.expenseTotal)}</td>
-                        <td className={`px-4 py-4 font-semibold ${record.profit >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                          {formatCurrency(record.profit)}
+            <>
+              <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+                <table className="min-w-full divide-y divide-gray-200 text-left text-sm">
+                  <thead className="bg-gray-50 text-gray-600">
+                    <tr>
+                      <th className="px-4 py-3 font-medium">Date</th>
+                      <th className="px-4 py-3 font-medium">Sales</th>
+                      <th className="px-4 py-3 font-medium">Expenses</th>
+                      <th className="px-4 py-3 font-medium">Profit</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {report.dailyRecords.length > 0 ? (
+                      report.dailyRecords.map((record) => (
+                        <tr key={record.date} className="hover:bg-gray-50">
+                          <td className="px-4 py-4 text-gray-900">{record.date}</td>
+                          <td className="px-4 py-4 text-gray-900">{formatCurrency(record.salesTotal)}</td>
+                          <td className="px-4 py-4 text-gray-900">{formatCurrency(record.expenseTotal)}</td>
+                          <td className={`px-4 py-4 font-semibold ${record.profit >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                            {formatCurrency(record.profit)}
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={4} className="px-4 py-6 text-center text-gray-500">
+                          No sales or expenses found for this range.
                         </td>
                       </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={4} className="px-4 py-6 text-center text-gray-500">
-                        No sales or expenses found for this range.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="mt-8">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100 mb-3">Products sold</h3>
+                <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white">
+                  <table className="min-w-full divide-y divide-gray-200 text-left text-sm">
+                    <thead className="bg-gray-50 text-gray-600">
+                      <tr>
+                        <th className="px-4 py-3 font-medium">Date and time</th>
+                        <th className="px-4 py-3 font-medium">Product</th>
+                        <th className="px-4 py-3 text-right font-medium">Quantity</th>
+                        <th className="px-4 py-3 text-right font-medium">Unit sale price</th>
+                        <th className="px-4 py-3 text-right font-medium">Line total</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {report.soldItems.length > 0 ? (
+                        report.soldItems.map((item, index) => (
+                          <tr key={`${item.date}-${item.name}-${index}`} className="hover:bg-gray-50">
+                            <td className="whitespace-nowrap px-4 py-4 text-gray-700">
+                              {new Date(item.date).toLocaleString()}
+                            </td>
+                            <td className="px-4 py-4 font-medium text-gray-900">{item.name}</td>
+                            <td className="px-4 py-4 text-right text-gray-700">{item.quantity}</td>
+                            <td className="px-4 py-4 text-right text-gray-700">{formatCurrency(item.unitPrice)}</td>
+                            <td className="px-4 py-4 text-right font-semibold text-gray-900">{formatCurrency(item.total)}</td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={5} className="px-4 py-6 text-center text-gray-500">
+                            No products sold in this range.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
           ) : null}
         </div>
 

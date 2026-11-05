@@ -10,11 +10,20 @@ type DailyRecord = {
   profit: number;
 };
 
+type SoldItemRecord = {
+  date: string;
+  name: string;
+  quantity: number;
+  unitPrice: number;
+  total: number;
+};
+
 type ReportSummary = {
   totalSales: number;
   totalExpenses: number;
   profit: number;
   dailyRecords: DailyRecord[];
+  soldItems: SoldItemRecord[];
 };
 
 function parseRange(range: string | null) {
@@ -45,20 +54,58 @@ export async function GET(req: NextRequest) {
     const startDate = parseRange(range);
 
     const transactionWhere = Prisma.sql`
-      WHERE type = 'out'
-      AND userId = ${user.id}
-      ${startDate ? Prisma.sql`AND createdAt >= ${startDate}` : Prisma.sql``}
+      WHERE "type" = 'out'
+      AND "userId" = ${user.id}
+      ${startDate ? Prisma.sql`AND "createdAt" >= ${startDate}` : Prisma.sql``}
     `;
 
     const expenseWhere = Prisma.sql`
-      WHERE userId = ${user.id}
-      ${startDate ? Prisma.sql`AND createdAt >= ${startDate}` : Prisma.sql``}
+      WHERE "userId" = ${user.id}
+      ${startDate ? Prisma.sql`AND "createdAt" >= ${startDate}` : Prisma.sql``}
     `;
+
+    const transactions = await prisma.transaction.findMany({
+      where: {
+        userId: user.id,
+        type: 'out',
+        createdAt: startDate ? { gte: startDate } : undefined,
+      },
+      select: { createdAt: true, items: true },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const soldItems = transactions.flatMap((transaction) => {
+      let items: any[];
+      try {
+        const parsedItems: unknown = JSON.parse(transaction.items);
+        if (!Array.isArray(parsedItems)) return [];
+        items = parsedItems;
+      } catch {
+        return [];
+      }
+
+      return items.flatMap((item) => {
+        const name = item?.name ?? item?.product?.name;
+        const unitPrice = Number(item?.price ?? item?.product?.price);
+        const quantity = Number(item?.quantity);
+        if (typeof name !== 'string' || !name || !Number.isFinite(unitPrice) || !Number.isFinite(quantity)) {
+          return [];
+        }
+
+        return [{
+          date: transaction.createdAt.toISOString(),
+          name,
+          quantity,
+          unitPrice,
+          total: unitPrice * quantity,
+        }];
+      });
+    });
 
     const salesTotalResult = await prisma.$queryRaw<
       { salesTotal: number }[]
     >`
-      SELECT IFNULL(SUM(totalAmount), 0) AS salesTotal
+      SELECT COALESCE(SUM("totalAmount"), 0) AS "salesTotal"
       FROM "Transaction"
       ${transactionWhere}
     `;
@@ -66,7 +113,7 @@ export async function GET(req: NextRequest) {
     const expensesTotalResult = await prisma.$queryRaw<
       { expensesTotal: number }[]
     >`
-      SELECT IFNULL(SUM(amount), 0) AS expensesTotal
+      SELECT COALESCE(SUM("amount"), 0) AS "expensesTotal"
       FROM "Expense"
       ${expenseWhere}
     `;
@@ -74,21 +121,21 @@ export async function GET(req: NextRequest) {
     const salesByDay = await prisma.$queryRaw<
       { date: string; total: number }[]
     >`
-      SELECT DATE(createdAt) AS date, IFNULL(SUM(totalAmount), 0) AS total
+      SELECT ("createdAt"::date)::text AS date, COALESCE(SUM("totalAmount"), 0) AS total
       FROM "Transaction"
       ${transactionWhere}
-      GROUP BY DATE(createdAt)
-      ORDER BY DATE(createdAt) ASC
+      GROUP BY "createdAt"::date
+      ORDER BY "createdAt"::date ASC
     `;
 
     const expensesByDay = await prisma.$queryRaw<
       { date: string; total: number }[]
     >`
-      SELECT DATE(createdAt) AS date, IFNULL(SUM(amount), 0) AS total
+      SELECT ("createdAt"::date)::text AS date, COALESCE(SUM("amount"), 0) AS total
       FROM "Expense"
       ${expenseWhere}
-      GROUP BY DATE(createdAt)
-      ORDER BY DATE(createdAt) ASC
+      GROUP BY "createdAt"::date
+      ORDER BY "createdAt"::date ASC
     `;
 
     const totalSales = Number(salesTotalResult[0]?.salesTotal ?? 0);
@@ -127,6 +174,7 @@ export async function GET(req: NextRequest) {
       totalExpenses,
       profit: totalSales - totalExpenses,
       dailyRecords,
+      soldItems,
     };
 
     return NextResponse.json(summary, { status: 200 });

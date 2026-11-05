@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Search, Plus, Minus, X, CheckCircle, Printer, Download } from 'lucide-react';
+import { Search, Plus, Minus, X, CheckCircle, Printer, Download, Pencil } from 'lucide-react';
 import { useInventoryStore } from '@/store/inventoryStore';
 import { useCartStore } from '@/store/cartStore';
 import { useAuthStore } from '@/store/authStore';
@@ -36,6 +36,7 @@ export default function SellPage() {
   const [receiptTransaction, setReceiptTransaction] = useState<any | null>(null);
   const [showQuantityModal, setShowQuantityModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [editingPriceProductId, setEditingPriceProductId] = useState<string | null>(null);
   const [quantityInput, setQuantityInput] = useState(1);
   const [addedItem, setAddedItem] = useState<string | null>(null);
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
@@ -248,16 +249,37 @@ export default function SellPage() {
                     </button>
                   </div>
                   <div className="flex items-center gap-2">
-                    <label className="text-sm text-gray-600">Sale price:</label>
+                    <span className="text-sm text-gray-600">Sale price: ₦{item.price.toFixed(2)}</span>
+                    <button
+                      type="button"
+                      onClick={() => setEditingPriceProductId(
+                        editingPriceProductId === item.product.id ? null : item.product.id
+                      )}
+                      aria-label={`Edit sale price for ${item.product.name}`}
+                      title="Edit sale price"
+                      className="w-8 h-8 bg-orange-100 text-orange-700 rounded flex items-center justify-center"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                  </div>
+                  {editingPriceProductId === item.product.id && (
                     <input
                       type="number"
                       min="0"
                       step="0.01"
                       value={item.price}
                       onChange={(e) => updatePrice(item.product.id, Number(e.target.value))}
-                      className="w-28 px-2 py-1 border border-gray-300 rounded"
+                      onFocus={(e) => e.currentTarget.select()}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === 'Escape') {
+                          setEditingPriceProductId(null);
+                        }
+                      }}
+                      aria-label={`New sale price for ${item.product.name}`}
+                      className="w-32 px-2 py-1 border border-orange-300 rounded"
+                      autoFocus
                     />
-                  </div>
+                  )}
                   <div className="text-right">
                     <div className="font-bold">₦{(item.price * item.quantity).toFixed(2)}</div>
                     <div className="text-xs text-gray-500">Total</div>
