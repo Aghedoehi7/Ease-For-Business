@@ -2,17 +2,28 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Menu, X, LogOut } from 'lucide-react';
+import { Menu, X, LogOut, ChevronDown } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { hydrateAuthStore, useAuthStore } from '@/store/authStore';
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
+  const [isStandalone, setIsStandalone] = useState(false);
   const router = useRouter();
   const { logout, user: authUser, setUser, setSessionToken } = useAuthStore();
 
   useEffect(() => {
     hydrateAuthStore();
+  }, []);
+
+  useEffect(() => {
+    const isIosStandalone =
+      'standalone' in window.navigator &&
+      Boolean((window.navigator as Navigator & { standalone?: boolean }).standalone);
+
+    setIsStandalone(
+      window.matchMedia('(display-mode: standalone)').matches || isIosStandalone
+    );
   }, []);
 
   const handleLogout = async () => {
@@ -69,7 +80,7 @@ export default function Navbar() {
                   </div>
                   <div className="hidden lg:block">
                     <p className="text-sm font-semibold">{authUser.name}</p>
-                    <p className="text-xs text-orange-100">{authUser.businessName}</p>
+                    <p className="text-xs text-black">{authUser.businessName}</p>
                   </div>
                 </div>
                 <button
@@ -100,9 +111,17 @@ export default function Navbar() {
           {/* Mobile menu button */}
           <button
             onClick={() => setIsOpen(!isOpen)}
-            className="md:hidden inline-flex items-center justify-center p-2 rounded-md text-white hover:bg-orange-700"
+            className="md:hidden inline-flex items-center justify-center p-2 rounded-md text-gray-800 hover:bg-gray-100"
+            aria-label={isOpen ? 'Close navigation menu' : 'Open navigation menu'}
+            aria-expanded={isOpen}
           >
-            {isOpen ? <X size={24} /> : <Menu size={24} />}
+            {isOpen ? (
+              <X size={24} />
+            ) : isStandalone ? (
+              <ChevronDown size={24} />
+            ) : (
+              <Menu size={24} />
+            )}
           </button>
         </div>
 
@@ -129,7 +148,7 @@ export default function Navbar() {
                     </div>
                     <div>
                       <p className="text-sm font-semibold">{authUser.name}</p>
-                      <p className="text-xs text-orange-100">{authUser.businessName}</p>
+                      <p className="text-xs text-black">{authUser.businessName}</p>
                     </div>
                   </div>
                 </div>

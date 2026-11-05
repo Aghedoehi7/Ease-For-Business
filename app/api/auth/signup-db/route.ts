@@ -1,9 +1,17 @@
 
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { isDatabaseConfigured, prisma } from "@/lib/prisma";
 import { hashPassword, signToken } from "@/lib/auth";
 
 export async function POST(req: Request) {
+  if (!isDatabaseConfigured()) {
+    console.error("Authentication unavailable: DATABASE_URL is not configured.");
+    return NextResponse.json(
+      { error: "Authentication is temporarily unavailable. Please try again later." },
+      { status: 503 }
+    );
+  }
+
   try {
     const body = await req.json();
     const { email, password, name, businessName } = body;

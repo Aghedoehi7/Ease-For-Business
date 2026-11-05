@@ -10,6 +10,10 @@ export const prisma =
     log: ["error", "warn"],
   });
 
+export function isDatabaseConfigured() {
+  return Boolean(process.env.DATABASE_URL?.trim());
+}
+
 if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = prisma;
 }
