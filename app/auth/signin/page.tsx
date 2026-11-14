@@ -48,7 +48,7 @@ export default function SignInPage() {
         {/* Card */}
         <div className="bg-white rounded-lg shadow-xl overflow-hidden">
           {/* Header */}
-          <div className="bg-gradient-to-r from-orange-600 to-red-600 px-6 py-8 text-white text-center">
+          <div className="bg-orange-600 bg-gradient-to-r from-orange-600 to-red-600 px-6 py-8 text-white text-center">
             <Link href="/" className="inline-block mb-4">
               <div className="text-3xl font-bold bg-white text-orange-600 px-4 py-2 rounded-lg inline-block">
                 Ease for Business
@@ -129,7 +129,7 @@ export default function SignInPage() {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full bg-gradient-to-r from-orange-600 to-red-600 text-white py-3 rounded-lg font-bold hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full bg-orange-600 bg-gradient-to-r from-orange-600 to-red-600 text-white py-3 rounded-lg font-bold hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <LogIn size={20} />
                 {isLoading ? 'Signing in...' : 'Sign In'}
