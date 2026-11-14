@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
+import { parseProductInput } from '@/lib/productInput';
 
 export async function GET(
   request: NextRequest,
@@ -39,12 +40,10 @@ export async function PUT(
     const user = await requireAuth(request);
     const { id } = await context.params;
 
-    const body = await request.json();
-    const { name, description, price, quantity, sku, category } = body;
-
-    if (!name || !sku || !price || quantity === undefined) {
+    const input = parseProductInput(await request.json());
+    if (!input) {
       return NextResponse.json(
-        { error: 'Missing required fields' },
+        { error: 'Enter a name, SKU, selling price above zero, non-negative purchase cost, and whole-number stock quantity.' },
         { status: 400 }
       );
     }
@@ -62,7 +61,7 @@ export async function PUT(
 
     // Check if SKU is taken by another product
     const skuConflict = await prisma.product.findFirst({
-      where: { sku, userId: user.id, id: { not: id } },
+      where: { sku: input.sku, userId: user.id, id: { not: id } },
     });
     if (skuConflict) {
       return NextResponse.json(
@@ -74,12 +73,7 @@ export async function PUT(
     const updatedProduct = await prisma.product.update({
       where: { id },
       data: {
-        name,
-        description,
-        price: parseFloat(price),
-        quantity: parseInt(quantity),
-        sku,
-        category,
+        ...input,
         updatedAt: new Date(),
       },
     });

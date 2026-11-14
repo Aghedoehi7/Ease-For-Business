@@ -1,0 +1,6 @@
+ALTER TABLE "Product"
+ADD COLUMN "costPrice" DOUBLE PRECISION;
+
+ALTER TABLE "Transaction"
+ADD COLUMN "costOfGoodsSold" DOUBLE PRECISION,
+ADD COLUMN "status" TEXT NOT NULL DEFAULT 'completed';

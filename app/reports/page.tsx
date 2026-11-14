@@ -11,8 +11,11 @@ type ReportRange = 'today' | 'week' | 'month' | 'all';
 type ProfitRecord = {
   date: string;
   salesTotal: number;
+  cogs: number | null;
+  grossProfit: number | null;
   expenseTotal: number;
-  profit: number;
+  netProfit: number | null;
+  cogsComplete: boolean;
 };
 
 type SoldItemRecord = {
@@ -20,24 +23,32 @@ type SoldItemRecord = {
   name: string;
   quantity: number;
   unitPrice: number;
+  costPrice: number | null;
   total: number;
+  cogs: number | null;
+  grossProfit: number | null;
 };
 
 type ProfitReport = {
   totalSales: number;
+  totalCogs: number | null;
+  cogsComplete: boolean;
+  incompleteSales: number;
+  grossProfit: number | null;
   totalExpenses: number;
-  profit: number;
+  netProfit: number | null;
   dailyRecords: ProfitRecord[];
   soldItems: SoldItemRecord[];
 };
 
 function generateCSV(products: any[]) {
-  const headers = ['Product Name', 'SKU', 'Category', 'Price', 'Quantity', 'Total Value'];
+  const headers = ['Product Name', 'SKU', 'Category', 'Selling Price', 'Purchase Cost', 'Quantity', 'Total Value at Selling Price'];
   const rows = products.map((p) => [
     `"${p.name}"`,
     `"${p.sku}"`,
     `"${p.category || 'N/A'}"`,
     p.price.toFixed(2),
+    p.costPrice == null ? 'Unavailable' : p.costPrice.toFixed(2),
     p.quantity,
     (p.price * p.quantity).toFixed(2),
   ]);
@@ -53,21 +64,25 @@ function generateCSV(products: any[]) {
 }
 
 function generateProfitCSV(report: ProfitReport) {
-  const headers = ['Date', 'Sales', 'Expenses', 'Profit'];
+  const headers = ['Date', 'Revenue', 'COGS', 'Gross Profit', 'Operating Expenses', 'Net Profit'];
   const rows = report.dailyRecords.map((record) => [
     `"${record.date}"`,
     record.salesTotal.toFixed(2),
+    record.cogs == null ? 'Unavailable' : record.cogs.toFixed(2),
+    record.grossProfit == null ? 'Unavailable' : record.grossProfit.toFixed(2),
     record.expenseTotal.toFixed(2),
-    record.profit.toFixed(2),
+    record.netProfit == null ? 'Unavailable' : record.netProfit.toFixed(2),
   ]);
 
   const csvContent = [
     headers.join(','),
     ...rows.map((row) => row.join(',')),
     '',
-    `Total Sales,${report.totalSales.toFixed(2)}`,
-    `Total Expenses,${report.totalExpenses.toFixed(2)}`,
-    `Net Profit,${report.profit.toFixed(2)}`,
+    `Total Revenue,${report.totalSales.toFixed(2)}`,
+    `Total COGS,${report.totalCogs == null ? 'Unavailable' : report.totalCogs.toFixed(2)}`,
+    `Gross Profit,${report.grossProfit == null ? 'Unavailable' : report.grossProfit.toFixed(2)}`,
+    `Operating Expenses,${report.totalExpenses.toFixed(2)}`,
+    `Net Profit,${report.netProfit == null ? 'Unavailable' : report.netProfit.toFixed(2)}`,
     'Generated on: ' + new Date().toISOString(),
   ].join('\n');
 
@@ -121,7 +136,23 @@ export default function ReportsPage() {
     }
 
     fetchReport();
-  }, [reportRange]);
+    const handleFocus = () => {
+      fetchReport();
+      loadProducts();
+    };
+    window.addEventListener('focus', handleFocus);
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        fetchReport();
+        loadProducts();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [loadProducts, reportRange]);
 
   const lowStockItems = getLowStockItems();
   const totalValue = getTotalInventoryValue();
@@ -133,7 +164,11 @@ export default function ReportsPage() {
     { value: 'all', label: 'All time' },
   ];
 
-  const profitPositive = report ? report.profit >= 0 : true;
+  const profitTone = report?.netProfit == null
+    ? 'border-gray-200 bg-gray-50 text-gray-700'
+    : report.netProfit >= 0
+      ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+      : 'border-rose-200 bg-rose-50 text-rose-700';
 
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-slate-950 py-8 px-4 sm:px-6 lg:px-8 text-slate-900 dark:text-slate-100">
@@ -182,7 +217,7 @@ export default function ReportsPage() {
           <div className="flex flex-col lg:flex-row justify-between gap-4 mb-6">
             <div>
               <h2 className="text-xl font-semibold text-gray-900 dark:text-slate-100">Daily profit report</h2>
-              <p className="text-gray-600 dark:text-slate-300 mt-1">Review sales, expenses, and net profit for the selected time range.</p>
+              <p className="text-gray-600 dark:text-slate-300 mt-1">Net profit uses recorded revenue less known COGS and operating expenses; taxes and other untracked costs are excluded.</p>
             </div>
             <div className="flex flex-wrap gap-2">
               {rangeOptions.map((option) => (
@@ -202,22 +237,39 @@ export default function ReportsPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
             <div className="rounded-xl border border-gray-200 bg-gray-50 p-5">
-              <p className="text-sm text-gray-500">Total sales</p>
+              <p className="text-sm text-gray-500">Total revenue</p>
               <p className="mt-2 text-3xl font-semibold text-gray-900">{report ? formatCurrency(report.totalSales) : '–'}</p>
             </div>
             <div className="rounded-xl border border-gray-200 bg-gray-50 p-5">
-              <p className="text-sm text-gray-500">Total expenses</p>
-              <p className="mt-2 text-3xl font-semibold text-gray-900">{report ? formatCurrency(report.totalExpenses) : '–'}</p>
+              <p className="text-sm text-gray-500">Cost of goods sold</p>
+              <p className="mt-2 text-2xl font-semibold text-gray-900">
+                {!report ? '–' : report.totalCogs == null ? 'Incomplete' : formatCurrency(report.totalCogs)}
+              </p>
             </div>
-            <div className={`rounded-xl border p-5 ${profitPositive ? 'border-emerald-200 bg-emerald-50' : 'border-rose-200 bg-rose-50'}`}>
+            <div className="rounded-xl border border-gray-200 bg-gray-50 p-5">
+              <p className="text-sm text-gray-500">Gross profit</p>
+              <p className="mt-2 text-2xl font-semibold text-gray-900">
+                {!report ? '–' : report.grossProfit == null ? 'Unavailable' : formatCurrency(report.grossProfit)}
+              </p>
+            </div>
+            <div className="rounded-xl border border-gray-200 bg-gray-50 p-5">
+              <p className="text-sm text-gray-500">Operating expenses</p>
+              <p className="mt-2 text-2xl font-semibold text-gray-900">{report ? formatCurrency(report.totalExpenses) : '–'}</p>
+            </div>
+            <div className={`rounded-xl border p-5 ${profitTone}`}>
               <p className="text-sm text-gray-500">Net profit</p>
-              <p className={`mt-2 text-3xl font-semibold ${profitPositive ? 'text-emerald-700' : 'text-rose-700'}`}>
-                {report ? formatCurrency(report.profit) : '–'}
+              <p className="mt-2 text-2xl font-semibold">
+                {!report ? '–' : report.netProfit == null ? 'Unavailable' : formatCurrency(report.netProfit)}
               </p>
             </div>
           </div>
+          {report && report.incompleteSales > 0 && (
+            <p className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+              Profit is unavailable for this range because {report.incompleteSales} sale{report.incompleteSales !== 1 ? 's have' : ' has'} no historical purchase cost. Existing costs cannot be reconstructed safely.
+            </p>
+          )}
 
           {reportError ? (
             <div className="rounded-xl border border-rose-200 bg-rose-50 p-5 text-rose-700">{reportError}</div>
@@ -230,9 +282,11 @@ export default function ReportsPage() {
                   <thead className="bg-gray-50 text-gray-600">
                     <tr>
                       <th className="px-4 py-3 font-medium">Date</th>
-                      <th className="px-4 py-3 font-medium">Sales</th>
+                      <th className="px-4 py-3 font-medium">Revenue</th>
+                      <th className="px-4 py-3 font-medium">COGS</th>
+                      <th className="px-4 py-3 font-medium">Gross profit</th>
                       <th className="px-4 py-3 font-medium">Expenses</th>
-                      <th className="px-4 py-3 font-medium">Profit</th>
+                      <th className="px-4 py-3 font-medium">Net profit</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
@@ -241,15 +295,17 @@ export default function ReportsPage() {
                         <tr key={record.date} className="hover:bg-gray-50">
                           <td className="px-4 py-4 text-gray-900">{record.date}</td>
                           <td className="px-4 py-4 text-gray-900">{formatCurrency(record.salesTotal)}</td>
+                          <td className="px-4 py-4 text-gray-900">{record.cogs == null ? 'Unavailable' : formatCurrency(record.cogs)}</td>
+                          <td className="px-4 py-4 text-gray-900">{record.grossProfit == null ? 'Unavailable' : formatCurrency(record.grossProfit)}</td>
                           <td className="px-4 py-4 text-gray-900">{formatCurrency(record.expenseTotal)}</td>
-                          <td className={`px-4 py-4 font-semibold ${record.profit >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
-                            {formatCurrency(record.profit)}
+                          <td className={`px-4 py-4 font-semibold ${record.netProfit == null ? 'text-gray-500' : record.netProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                            {record.netProfit == null ? 'Unavailable' : formatCurrency(record.netProfit)}
                           </td>
                         </tr>
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={4} className="px-4 py-6 text-center text-gray-500">
+                        <td colSpan={6} className="px-4 py-6 text-center text-gray-500">
                           No sales or expenses found for this range.
                         </td>
                       </tr>
@@ -268,7 +324,10 @@ export default function ReportsPage() {
                         <th className="px-4 py-3 font-medium">Product</th>
                         <th className="px-4 py-3 text-right font-medium">Quantity</th>
                         <th className="px-4 py-3 text-right font-medium">Unit sale price</th>
+                        <th className="px-4 py-3 text-right font-medium">Unit purchase cost</th>
                         <th className="px-4 py-3 text-right font-medium">Line total</th>
+                        <th className="px-4 py-3 text-right font-medium">COGS</th>
+                        <th className="px-4 py-3 text-right font-medium">Gross profit</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
@@ -281,12 +340,15 @@ export default function ReportsPage() {
                             <td className="px-4 py-4 font-medium text-gray-900">{item.name}</td>
                             <td className="px-4 py-4 text-right text-gray-700">{item.quantity}</td>
                             <td className="px-4 py-4 text-right text-gray-700">{formatCurrency(item.unitPrice)}</td>
+                            <td className="px-4 py-4 text-right text-gray-700">{item.costPrice == null ? 'Unavailable' : formatCurrency(item.costPrice)}</td>
                             <td className="px-4 py-4 text-right font-semibold text-gray-900">{formatCurrency(item.total)}</td>
+                            <td className="px-4 py-4 text-right text-gray-700">{item.cogs == null ? 'Unavailable' : formatCurrency(item.cogs)}</td>
+                            <td className="px-4 py-4 text-right text-gray-700">{item.grossProfit == null ? 'Unavailable' : formatCurrency(item.grossProfit)}</td>
                           </tr>
                         ))
                       ) : (
                         <tr>
-                          <td colSpan={5} className="px-4 py-6 text-center text-gray-500">
+                          <td colSpan={8} className="px-4 py-6 text-center text-gray-500">
                             No products sold in this range.
                           </td>
                         </tr>
@@ -315,11 +377,11 @@ export default function ReportsPage() {
             <div className="flex items-center gap-3 mb-4">
               <TrendingUp className="text-green-600" size={28} />
               <div>
-                <p className="text-sm text-gray-500 dark:text-slate-400">Inventory value</p>
+                <p className="text-sm text-gray-500 dark:text-slate-400">Inventory value at selling prices</p>
                 <p className="text-3xl font-bold text-gray-900 dark:text-slate-100">{formatCurrency(totalValue)}</p>
               </div>
             </div>
-            <p className="text-sm text-gray-600 dark:text-slate-300">Estimated total stock value based on current quantity and unit price.</p>
+            <p className="text-sm text-gray-600 dark:text-slate-300">Estimated potential sales value of current stock; this is not inventory cost basis.</p>
           </div>
 
           <div className="bg-white dark:bg-slate-900 rounded-xl shadow p-6 border border-gray-200 dark:border-slate-700">

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Search, Plus, Minus, X, CheckCircle, Printer, Download, Pencil } from 'lucide-react';
 import { useInventoryStore } from '@/store/inventoryStore';
 import { useCartStore } from '@/store/cartStore';
@@ -11,6 +11,28 @@ import { generatePDFReceipt, normalizeReceiptItems } from '@/lib/receipt';
 const paymentMethods = ['cash', 'transfer', 'pos', 'credit'] as const;
 
 type PaymentMethod = (typeof paymentMethods)[number];
+
+type SaleLine = {
+  productId?: string;
+  name: string;
+  quantity: number;
+  price: number;
+  total?: number;
+  costPrice?: number | null;
+  costOfGoodsSold?: number | null;
+  grossProfit?: number | null;
+};
+
+type SaleRecord = {
+  id: string;
+  type: string;
+  status: string;
+  createdAt: string;
+  totalAmount: number;
+  costOfGoodsSold: number | null;
+  grossProfit: number | null;
+  items: SaleLine[] | null;
+};
 
 export default function SellPage() {
   const { products, loadProducts } = useInventoryStore();
@@ -39,11 +61,31 @@ export default function SellPage() {
   const [editingPriceProductId, setEditingPriceProductId] = useState<string | null>(null);
   const [quantityInput, setQuantityInput] = useState(1);
   const [addedItem, setAddedItem] = useState<string | null>(null);
+  const [sales, setSales] = useState<SaleRecord[]>([]);
+  const [saleHistoryError, setSaleHistoryError] = useState<string | null>(null);
+  const [editingSale, setEditingSale] = useState<SaleRecord | null>(null);
+  const [editingSaleItems, setEditingSaleItems] = useState<SaleLine[]>([]);
+  const [savingSaleEdit, setSavingSaleEdit] = useState(false);
+  const [saleError, setSaleError] = useState<string | null>(null);
   const longPressTimer = useRef<NodeJS.Timeout | null>(null);
+
+  const loadSales = useCallback(async () => {
+    try {
+      const response = await fetch('/api/transactions?limit=20', { credentials: 'include' });
+      if (!response.ok) throw new Error('Failed to load sales history');
+      const data = await response.json();
+      setSales(data.transactions.filter((transaction: SaleRecord) => transaction.type === 'out'));
+      setSaleHistoryError(null);
+    } catch (error) {
+      console.error('Failed to load sales history:', error);
+      setSaleHistoryError('Unable to load sales history.');
+    }
+  }, []);
 
   useEffect(() => {
     loadProducts();
-  }, [loadProducts]);
+    void loadSales();
+  }, [loadProducts, loadSales]);
 
   const recentProducts = products.slice(0, 10);
 
@@ -75,6 +117,7 @@ export default function SellPage() {
 
   const handleCompleteSale = () => {
     if (items.length === 0) return;
+    setSaleError(null);
     setShowPaymentModal(true);
   };
 
@@ -86,10 +129,13 @@ export default function SellPage() {
         businessName: authUser?.businessName ?? transaction.businessName ?? 'My Business',
         items: typeof transaction.items === 'string' ? JSON.parse(transaction.items) : transaction.items,
       });
+      await Promise.all([loadProducts(), loadSales()]);
+      setSaleError(null);
       setShowPaymentModal(false);
       setShowReceiptModal(true);
     } catch (err) {
       console.error('Sale failed:', err);
+      setSaleError(err instanceof Error ? err.message : 'Sale failed. Please try again.');
     }
   };
 
@@ -97,6 +143,61 @@ export default function SellPage() {
     setReceiptTransaction(null);
     setShowReceiptModal(false);
     setShowCartDrawer(false);
+  };
+
+  const changeSaleStatus = async (sale: SaleRecord, action: 'cancel' | 'refund') => {
+    const actionLabel = action === 'refund' ? 'refund' : 'cancel';
+    if (!window.confirm(`Are you sure you want to ${actionLabel} this sale? Products still in inventory will be restocked.`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/transactions/${sale.id}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || `Unable to ${actionLabel} sale`);
+      await Promise.all([loadSales(), loadProducts()]);
+    } catch (error) {
+      console.error(`Failed to ${actionLabel} sale:`, error);
+      alert(error instanceof Error ? error.message : `Unable to ${actionLabel} sale`);
+    }
+  };
+
+  const beginSaleEdit = (sale: SaleRecord) => {
+    setEditingSale(sale);
+    setEditingSaleItems((sale.items ?? []).map((item) => ({ ...item })));
+  };
+
+  const saveSaleEdit = async () => {
+    if (!editingSale) return;
+    setSavingSaleEdit(true);
+    try {
+      const response = await fetch(`/api/transactions/${editingSale.id}`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: editingSaleItems.map(({ productId, quantity, price }) => ({
+            productId,
+            quantity,
+            price,
+          })),
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Unable to edit sale');
+      setEditingSale(null);
+      await Promise.all([loadSales(), loadProducts()]);
+    } catch (error) {
+      console.error('Failed to edit sale:', error);
+      alert(error instanceof Error ? error.message : 'Unable to edit sale');
+    } finally {
+      setSavingSaleEdit(false);
+    }
   };
 
   const downloadReceipt = async (transaction: any) => {
@@ -115,6 +216,12 @@ export default function SellPage() {
           : JSON.parse(receiptTransaction.items || '[]')
       )
     : [];
+  const estimatedCogs = items.every((item) => item.product.costPrice != null)
+    ? items.reduce(
+        (total, item) => total + (item.product.costPrice ?? 0) * item.quantity,
+        0
+      )
+    : null;
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20 text-gray-900">
@@ -148,6 +255,9 @@ export default function SellPage() {
             >
               <div className="text-xs font-medium text-center truncate">{product.name}</div>
               <div className="text-sm font-bold text-orange-600">₦{product.price}</div>
+              <div className="text-[10px] text-gray-500">
+                Cost: {product.costPrice == null ? 'Unavailable' : `₦${product.costPrice.toFixed(2)}`}
+              </div>
             </div>
           ))}
         </div>
@@ -168,6 +278,9 @@ export default function SellPage() {
             >
               <h3 className="font-medium text-sm mb-1 truncate">{product.name}</h3>
               <div className="text-lg font-bold text-orange-600 mb-2">₦{product.price}</div>
+              <p className="mb-2 text-xs text-gray-600">
+                Purchase cost: {product.costPrice == null ? 'Unavailable' : `₦${product.costPrice.toFixed(2)}`}
+              </p>
               <div className="flex justify-between items-center">
                 <span className={`text-xs px-2 py-1 rounded ${
                   product.quantity <= 5 ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-600'
@@ -183,12 +296,89 @@ export default function SellPage() {
         </div>
       </div>
 
+      <section className="px-4 pt-6">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Recent Sales</h2>
+          <button
+            type="button"
+            onClick={() => void loadSales()}
+            className="text-sm font-medium text-orange-700 hover:text-orange-800"
+          >
+            Refresh
+          </button>
+        </div>
+        {saleHistoryError && <p className="mb-3 text-sm text-red-600">{saleHistoryError}</p>}
+        <div className="space-y-3">
+          {sales.length === 0 ? (
+            <div className="rounded-lg border border-gray-200 bg-white p-4 text-sm text-gray-600">No sales recorded yet.</div>
+          ) : sales.map((sale) => (
+            <article key={sale.id} className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className="font-semibold">{new Date(sale.createdAt).toLocaleString()}</p>
+                  <p className="mt-1 text-sm text-gray-600">Sale #{sale.id}</p>
+                  <p className="mt-2 text-sm text-gray-700">
+                    {(sale.items ?? []).map((item) =>
+                      `${item.name} × ${item.quantity} · ${item.costPrice == null ? 'Cost unavailable' : `Cost ₦${item.costPrice.toFixed(2)}/unit`}`
+                    ).join('; ')}
+                  </p>
+                </div>
+                <div className="text-left sm:text-right">
+                  <p className="font-bold text-gray-900">Revenue: ₦{sale.totalAmount.toFixed(2)}</p>
+                  <p className="text-sm text-gray-600">
+                    COGS: {sale.costOfGoodsSold == null ? 'Unavailable' : `₦${sale.costOfGoodsSold.toFixed(2)}`}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    Gross profit: {sale.grossProfit == null ? 'Unavailable' : `₦${sale.grossProfit.toFixed(2)}`}
+                  </p>
+                  <p className={`mt-1 text-xs font-semibold uppercase ${sale.status === 'completed' ? 'text-emerald-700' : 'text-gray-500'}`}>
+                    {sale.status}
+                  </p>
+                </div>
+              </div>
+              {sale.status === 'completed' && (
+                <div className="mt-3 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => beginSaleEdit(sale)}
+                    disabled={!sale.items?.length || sale.items.some((item) => !item.productId)}
+                    className="rounded border border-blue-300 px-3 py-1.5 text-sm text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Edit sale
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void changeSaleStatus(sale, 'cancel')}
+                    className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+                  >
+                    Cancel sale
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void changeSaleStatus(sale, 'refund')}
+                    className="rounded border border-orange-300 px-3 py-1.5 text-sm text-orange-700 hover:bg-orange-50"
+                  >
+                    Refund sale
+                  </button>
+                </div>
+              )}
+            </article>
+          ))}
+        </div>
+      </section>
+
       {/* Cart Bar */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 z-20">
         <div className="flex justify-between items-center mb-3">
           <div>
             <div className="text-sm text-gray-600">Items: {getTotalItems()}</div>
             <div className="text-lg font-bold">Total: ₦{getTotalPrice().toFixed(2)}</div>
+            <div className="text-xs text-gray-600">
+              Estimated COGS: {estimatedCogs == null ? 'Unavailable' : `₦${estimatedCogs.toFixed(2)}`}
+            </div>
+            <div className="text-xs text-gray-600">
+              Estimated gross profit: {estimatedCogs == null ? 'Unavailable' : `₦${(getTotalPrice() - estimatedCogs).toFixed(2)}`}
+            </div>
           </div>
           <div className="flex space-x-2">
             <button
@@ -224,6 +414,9 @@ export default function SellPage() {
                   <div className="flex-1">
                     <div className="font-medium">{item.product.name}</div>
                     <div className="text-sm text-gray-600">Original: ₦{item.product.price.toFixed(2)}</div>
+                    <div className="text-sm text-gray-600">
+                      Purchase cost: {item.product.costPrice == null ? 'Unavailable' : `₦${item.product.costPrice.toFixed(2)}`}
+                    </div>
                   </div>
                   <button
                     onClick={() => removeItem(item.product.id)}
@@ -288,7 +481,13 @@ export default function SellPage() {
               </div>
             ))}
             <div className="border-t pt-4 mt-4">
-              <div className="text-lg font-bold">Total: ₦{getTotalPrice().toFixed(2)}</div>
+              <div className="text-lg font-bold">Total revenue: ₦{getTotalPrice().toFixed(2)}</div>
+              <div className="text-sm text-gray-600">
+                COGS: {estimatedCogs == null ? 'Unavailable' : `₦${estimatedCogs.toFixed(2)}`}
+              </div>
+              <div className="text-sm text-gray-600">
+                Gross profit: {estimatedCogs == null ? 'Unavailable' : `₦${(getTotalPrice() - estimatedCogs).toFixed(2)}`}
+              </div>
             </div>
           </div>
         </div>
@@ -337,6 +536,94 @@ export default function SellPage() {
         </div>
       )}
 
+      {editingSale && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 p-4">
+          <div className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-lg bg-white p-6">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-semibold">Edit sale</h2>
+              <button type="button" onClick={() => setEditingSale(null)} aria-label="Close sale editor">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <p className="mb-4 text-sm text-gray-600">
+              Quantity changes update stock atomically. The original purchase cost snapshot is retained.
+            </p>
+            <div className="space-y-3">
+              {editingSaleItems.map((item, index) => (
+                <div key={`${item.productId}-${index}`} className="grid grid-cols-1 gap-3 rounded border border-gray-200 p-3 sm:grid-cols-[minmax(0,1fr)_6rem_8rem_auto] sm:items-end">
+                  <p className="font-medium">{item.name}</p>
+                  <label className="text-sm text-gray-600">
+                    Quantity
+                    <input
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={item.quantity}
+                      onChange={(event) => {
+                        const quantity = Number(event.target.value);
+                        setEditingSaleItems((current) => current.map((line, lineIndex) =>
+                          lineIndex === index ? { ...line, quantity } : line
+                        ));
+                      }}
+                      className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-gray-900"
+                    />
+                  </label>
+                  <label className="text-sm text-gray-600">
+                    Sale price
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={item.price}
+                      onChange={(event) => {
+                        const price = event.target.value === '' ? Number.NaN : Number(event.target.value);
+                        setEditingSaleItems((current) => current.map((line, lineIndex) =>
+                          lineIndex === index ? { ...line, price } : line
+                        ));
+                      }}
+                      className="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-gray-900"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setEditingSaleItems((current) => current.filter((_, lineIndex) => lineIndex !== index))}
+                    className="rounded px-2 py-1 text-sm text-red-700 hover:bg-red-50"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setEditingSale(null)}
+                className="rounded border border-gray-300 px-4 py-2 text-gray-700"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void saveSaleEdit()}
+                disabled={
+                  savingSaleEdit ||
+                  editingSaleItems.length === 0 ||
+                  editingSaleItems.some((item) =>
+                    !Number.isInteger(item.quantity) ||
+                    item.quantity <= 0 ||
+                    !Number.isFinite(item.price) ||
+                    item.price < 0
+                  )
+                }
+                className="rounded bg-orange-600 px-4 py-2 font-semibold text-white disabled:opacity-50"
+              >
+                {savingSaleEdit ? 'Saving…' : 'Save changes'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Payment Modal */}
       {showPaymentModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-30 flex items-center justify-center">
@@ -359,6 +646,9 @@ export default function SellPage() {
                 );
               })}
             </div>
+            {saleError && (
+              <p className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{saleError}</p>
+            )}
             <div className="flex space-x-2">
               <button
                 onClick={() => setShowPaymentModal(false)}
@@ -411,21 +701,51 @@ export default function SellPage() {
                   <tr>
                     <th className="px-4 py-2 border-b">Product</th>
                     <th className="px-4 py-2 border-b text-center">Qty</th>
-                    <th className="px-4 py-2 border-b text-right">Price</th>
-                    <th className="px-4 py-2 border-b text-right">Subtotal</th>
+                    <th className="px-4 py-2 border-b text-right">Sale Price</th>
+                    <th className="px-4 py-2 border-b text-right">Purchase Cost</th>
+                    <th className="px-4 py-2 border-b text-right">Sale Total</th>
+                    <th className="px-4 py-2 border-b text-right">COGS</th>
+                    <th className="px-4 py-2 border-b text-right">Gross Profit</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {receiptItems.map((item: any) => (
+                  {receiptItems.map((item) => (
                     <tr key={item.id}>
                       <td className="px-4 py-2 border-b">{item.name}</td>
                       <td className="px-4 py-2 border-b text-center">{item.quantity}</td>
                       <td className="px-4 py-2 border-b text-right">₦{item.price.toFixed(2)}</td>
+                      <td className="px-4 py-2 border-b text-right">
+                        {item.costPrice == null ? 'Unavailable' : `₦${item.costPrice.toFixed(2)}`}
+                      </td>
                       <td className="px-4 py-2 border-b text-right">₦{item.subtotal.toFixed(2)}</td>
+                      <td className="px-4 py-2 border-b text-right">
+                        {item.costOfGoodsSold == null ? 'Unavailable' : `₦${item.costOfGoodsSold.toFixed(2)}`}
+                      </td>
+                      <td className="px-4 py-2 border-b text-right">
+                        {item.grossProfit == null ? 'Unavailable' : `₦${item.grossProfit.toFixed(2)}`}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 gap-2 text-sm sm:grid-cols-3">
+              <p>Revenue: <strong>₦{Number(receiptTransaction.totalAmount ?? 0).toFixed(2)}</strong></p>
+              <p>
+                COGS: <strong>
+                  {receiptTransaction.costOfGoodsSold == null
+                    ? 'Unavailable'
+                    : `₦${Number(receiptTransaction.costOfGoodsSold).toFixed(2)}`}
+                </strong>
+              </p>
+              <p>
+                Gross profit: <strong>
+                  {receiptTransaction.grossProfit == null
+                    ? 'Unavailable'
+                    : `₦${Number(receiptTransaction.grossProfit).toFixed(2)}`}
+                </strong>
+              </p>
             </div>
 
             <div className="mt-6 flex flex-col sm:flex-row gap-3">

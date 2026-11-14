@@ -12,21 +12,21 @@ datasource db {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
-  password      String
-  name          String?
-  businessName  String?
-  isSubscribed  Boolean   @default(false)
-  subscribedAt  DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id           String    @id @default(cuid())
+  email        String    @unique
+  password     String
+  name         String?
+  businessName String?
+  isSubscribed Boolean   @default(false)
+  subscribedAt DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
-  products      Product[]
-  transactions  Transaction[]
-  sessions      Session[]
-  chatMessages  ChatMessage[]
-  expenses      Expense[]
+  products     Product[]
+  transactions Transaction[]
+  sessions     Session[]
+  chatMessages ChatMessage[]
+  expenses     Expense[]
 }
 
 model Product {
@@ -34,6 +34,7 @@ model Product {
   name        String
   description String?
   price       Float
+  costPrice   Float?
   quantity    Int
   sku         String   @unique
   category    String?
@@ -41,18 +42,20 @@ model Product {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  user        User     @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id])
 }
 
 model Transaction {
-  id            String   @id @default(cuid())
-  userId        String
-  type          String   // 'in', 'out', 'adjustment'
-  reason        String?
-  items         String   // JSON string of items
-  totalAmount   Float
-  paymentMethod String?
-  createdAt     DateTime @default(now())
+  id              String   @id @default(cuid())
+  userId          String
+  type            String // 'in', 'out', 'adjustment'
+  reason          String?
+  items           String // JSON string of items
+  totalAmount     Float
+  costOfGoodsSold Float?
+  status          String   @default("completed")
+  paymentMethod   String?
+  createdAt       DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id])
 }
@@ -65,7 +68,7 @@ model Expense {
   userId    String
   createdAt DateTime @default(now())
 
-  user      User     @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id])
 }
 
 model ChatMessage {
@@ -75,7 +78,7 @@ model ChatMessage {
   content   String
   createdAt DateTime @default(now())
 
-  user      User     @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id])
 }
 
 model Session {
@@ -84,5 +87,5 @@ model Session {
   userId    String
   expiresAt DateTime
 
-  user      User     @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id])
 }

@@ -3,6 +3,7 @@ export interface Product {
   name: string;
   description: string;
   price: number;
+  costPrice: number | null;
   quantity: number;
   sku: string;
   category: string;
@@ -24,4 +25,7 @@ export interface ReceiptItem {
   price: number;
   quantity: number;
   subtotal: number;
+  costPrice?: number | null;
+  costOfGoodsSold?: number | null;
+  grossProfit?: number | null;
 }

@@ -61,8 +61,7 @@ export const useCartStore = create<CartState>((set, get) => ({
   confirmSale: async () => {
     set({ loading: true });
     try {
-      const { items, paymentMethod, getTotalPrice } = get();
-      const totalAmount = getTotalPrice();
+      const { items, paymentMethod } = get();
 
       const response = await fetch('/api/transactions', {
         method: 'POST',
@@ -78,7 +77,6 @@ export const useCartStore = create<CartState>((set, get) => ({
             price: item.price,
             total: item.price * item.quantity,
           })),
-          totalAmount,
           paymentMethod,
         }),
       });

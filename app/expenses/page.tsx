@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { Pencil, Trash2 } from 'lucide-react';
 
 interface Expense {
   id: string;
@@ -18,6 +19,7 @@ export default function ExpensesPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [range, setRange] = useState<'all' | 'today' | 'week' | 'month'>('all');
+  const [editingExpenseId, setEditingExpenseId] = useState<string | null>(null);
 
   const fetchExpenses = async (rangeValue: string = 'all') => {
     try {
@@ -28,6 +30,7 @@ export default function ExpensesPage() {
       }
       const data = await res.json();
       setExpenses(data);
+      setError('');
     } catch (err) {
       console.error(err);
       setError('Unable to load expenses. Please try again.');
@@ -56,8 +59,8 @@ export default function ExpensesPage() {
     setLoading(true);
 
     try {
-      const res = await fetch('/api/expenses', {
-        method: 'POST',
+      const res = await fetch(editingExpenseId ? `/api/expenses/${editingExpenseId}` : '/api/expenses', {
+        method: editingExpenseId ? 'PUT' : 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -75,6 +78,7 @@ export default function ExpensesPage() {
       setAmount('');
       setCategory('');
       setNote('');
+      setEditingExpenseId(null);
       await fetchExpenses(range === 'all' ? '' : range);
     } catch (err) {
       console.error(err);
@@ -82,6 +86,44 @@ export default function ExpensesPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const startEditingExpense = (expense: Expense) => {
+    setEditingExpenseId(expense.id);
+    setAmount(String(expense.amount));
+    setCategory(expense.category);
+    setNote(expense.note ?? '');
+    setError('');
+  };
+
+  const deleteExpense = async (expense: Expense) => {
+    if (!window.confirm(`Delete the ${expense.category} expense of ₦${expense.amount.toFixed(2)}?`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/expenses/${expense.id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (!response.ok) {
+        const payload = await response.json();
+        throw new Error(payload?.error || 'Failed to delete expense');
+      }
+      if (editingExpenseId === expense.id) cancelExpenseEdit();
+      await fetchExpenses(range === 'all' ? '' : range);
+    } catch (err) {
+      console.error(err);
+      setError(err instanceof Error ? err.message : 'Failed to delete expense.');
+    }
+  };
+
+  const cancelExpenseEdit = () => {
+    setEditingExpenseId(null);
+    setAmount('');
+    setCategory('');
+    setNote('');
+    setError('');
   };
 
   return (
@@ -109,7 +151,9 @@ export default function ExpensesPage() {
 
         <div className="grid gap-8 lg:grid-cols-[350px_minmax(0,1fr)]">
           <section className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Add Expense</h2>
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">
+              {editingExpenseId ? 'Edit Expense' : 'Add Expense'}
+            </h2>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700">Amount</label>
@@ -147,8 +191,17 @@ export default function ExpensesPage() {
                 disabled={loading}
                 className="w-full rounded-lg bg-orange-600 px-4 py-3 text-white font-semibold shadow hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {loading ? 'Saving...' : 'Save Expense'}
+                {loading ? 'Saving...' : editingExpenseId ? 'Update Expense' : 'Save Expense'}
               </button>
+              {editingExpenseId && (
+                <button
+                  type="button"
+                  onClick={cancelExpenseEdit}
+                  className="w-full rounded-lg border border-gray-300 px-4 py-2 text-gray-700 hover:bg-gray-50"
+                >
+                  Cancel edit
+                </button>
+              )}
             </form>
           </section>
 
@@ -179,7 +232,27 @@ export default function ExpensesPage() {
                         <p className="text-sm font-semibold text-gray-900">{expense.category}</p>
                         <p className="mt-1 text-sm text-gray-600">{expense.note || 'No note'}</p>
                       </div>
-                      <p className="text-lg font-bold text-orange-600">₦{expense.amount.toFixed(2)}</p>
+                      <div className="text-right">
+                        <p className="text-lg font-bold text-orange-600">₦{expense.amount.toFixed(2)}</p>
+                        <div className="mt-2 flex justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => startEditingExpense(expense)}
+                            aria-label={`Edit ${expense.category} expense`}
+                            className="rounded p-1.5 text-blue-700 hover:bg-blue-50"
+                          >
+                            <Pencil size={16} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void deleteExpense(expense)}
+                            aria-label={`Delete ${expense.category} expense`}
+                            className="rounded p-1.5 text-red-700 hover:bg-red-50"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </div>
                     </div>
                     <p className="mt-3 text-xs uppercase tracking-wide text-gray-900">
                       {new Date(expense.createdAt).toLocaleString()}

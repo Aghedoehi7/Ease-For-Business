@@ -8,14 +8,14 @@ import { hydrateAuthStore, useAuthStore } from '@/store/authStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { formatCurrency } from '@/lib/utils';
 
-type ExpenseSummary = {
-  total: number;
-  count: number;
-  latest?: {
-    amount: number;
-    category: string;
-    createdAt: string;
-  } | null;
+type FinancialSummary = {
+  totalSales: number;
+  totalCogs: number | null;
+  cogsComplete: boolean;
+  incompleteSales: number;
+  grossProfit: number | null;
+  totalExpenses: number;
+  netProfit: number | null;
 };
 
 type Props = {
@@ -28,11 +28,9 @@ type Props = {
 export default function DashboardClient({ user }: Props) {
   const [currentUser, setCurrentUser] = useState(user);
   const [authChecked, setAuthChecked] = useState(false);
-  const [expenseSummary, setExpenseSummary] = useState<ExpenseSummary>({
-    total: 0,
-    count: 0,
-    latest: null,
-  });
+  const [reportRange, setReportRange] = useState<'today' | 'week' | 'month'>('month');
+  const [financialSummary, setFinancialSummary] = useState<FinancialSummary | null>(null);
+  const [financialError, setFinancialError] = useState<string | null>(null);
   const authUser = useAuthStore((state) => state.user);
   const { emailNotifications, lowStockAlerts } = useSettingsStore((state) => state.settings);
   const { products, loading, loadProducts, getTotalInventoryValue, getLowStockItems } = useInventoryStore();
@@ -79,28 +77,38 @@ export default function DashboardClient({ user }: Props) {
     if (currentUser) {
       loadProducts();
 
-      fetch('/api/expenses?range=month', { credentials: 'include' })
-        .then((res) => res.json())
-        .then((data) => {
-          const expenses = Array.isArray(data) ? data : [];
-          const total = expenses.reduce((sum, expense) => sum + (expense.amount ?? 0), 0);
-          setExpenseSummary({
-            total,
-            count: expenses.length,
-            latest: expenses[0]
-              ? {
-                  amount: expenses[0].amount,
-                  category: expenses[0].category,
-                  createdAt: expenses[0].createdAt,
-                }
-              : null,
-          });
-        })
-        .catch((error) => {
-          console.error('Failed to load expense summary:', error);
-        });
+      const loadFinancialSummary = async () => {
+        try {
+          const response = await fetch(`/api/reports?range=${reportRange}`, { credentials: 'include' });
+          if (!response.ok) throw new Error('Unable to load financial summary');
+          setFinancialSummary(await response.json());
+          setFinancialError(null);
+        } catch (error) {
+          console.error('Failed to load financial summary:', error);
+          setFinancialError('Financial summary is temporarily unavailable.');
+        }
+      };
+
+      const handleVisibility = () => {
+        if (document.visibilityState === 'visible') {
+          void loadFinancialSummary();
+          void loadProducts();
+        }
+      };
+      const handleFocus = () => {
+        void loadFinancialSummary();
+        void loadProducts();
+      };
+
+      void loadFinancialSummary();
+      window.addEventListener('focus', handleFocus);
+      document.addEventListener('visibilitychange', handleVisibility);
+      return () => {
+        window.removeEventListener('focus', handleFocus);
+        document.removeEventListener('visibilitychange', handleVisibility);
+      };
     }
-  }, [loadProducts, currentUser]);
+  }, [loadProducts, currentUser, reportRange]);
 
   if (!authChecked) {
     return (
@@ -153,6 +161,66 @@ export default function DashboardClient({ user }: Props) {
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-slate-950 py-8 px-4 sm:px-6 lg:px-8 text-slate-900 dark:text-slate-100">
       <div className="max-w-7xl mx-auto">
+        <section className="mb-8 rounded-xl border border-gray-200 bg-white p-6 shadow-lg dark:border-slate-700 dark:bg-slate-900">
+          <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900 dark:text-slate-100">Business profit</h2>
+              <p className="mt-1 text-sm text-gray-600 dark:text-slate-300">
+                Net profit is based on recorded sales, known COGS, and recorded expenses; it excludes untracked taxes and other costs.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {([
+                ['today', 'Today'],
+                ['week', 'Last 7 days'],
+                ['month', 'This month'],
+              ] as const).map(([range, label]) => (
+                <button
+                  key={range}
+                  type="button"
+                  onClick={() => setReportRange(range)}
+                  className={`rounded-lg border px-3 py-2 text-sm font-medium ${
+                    reportRange === range
+                      ? 'border-orange-600 bg-orange-600 text-white'
+                      : 'border-gray-200 bg-white text-gray-700 hover:border-orange-400'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+          {financialError ? (
+            <p className="rounded-lg bg-red-50 p-4 text-sm text-red-700">{financialError}</p>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+              {[
+                ['Total revenue', financialSummary ? formatCurrency(financialSummary.totalSales) : 'Loading…'],
+                ['Cost of goods sold', financialSummary?.cogsComplete
+                  ? formatCurrency(financialSummary.totalCogs ?? 0)
+                  : financialSummary ? 'Incomplete' : 'Loading…'],
+                ['Gross profit', financialSummary?.grossProfit == null
+                  ? financialSummary ? 'Unavailable' : 'Loading…'
+                  : formatCurrency(financialSummary.grossProfit)],
+                ['Operating expenses', financialSummary ? formatCurrency(financialSummary.totalExpenses) : 'Loading…'],
+                ['Net profit', financialSummary?.netProfit == null
+                  ? financialSummary ? 'Unavailable' : 'Loading…'
+                  : formatCurrency(financialSummary.netProfit)],
+              ].map(([label, value]) => (
+                <div key={label} className="rounded-lg bg-gray-50 p-4 dark:bg-slate-800">
+                  <p className="text-sm text-gray-600 dark:text-slate-300">{label}</p>
+                  <p className="mt-2 text-xl font-bold text-gray-900 dark:text-slate-100">{value}</p>
+                </div>
+              ))}
+              {financialSummary && financialSummary.incompleteSales > 0 && (
+                <p className="sm:col-span-2 lg:col-span-5 text-sm text-amber-700">
+                  {financialSummary.incompleteSales} sale{financialSummary.incompleteSales !== 1 ? 's have' : ' has'} no historical purchase cost. Add purchase costs to products to calculate COGS for future sales; prior sales cannot be backfilled reliably.
+                </p>
+              )}
+            </div>
+          )}
+        </section>
+
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
@@ -178,7 +246,7 @@ export default function DashboardClient({ user }: Props) {
               highlight: stats.lowStockItems > 0
             },
             {
-              label: 'Inventory Value',
+              label: 'Inventory Value at Selling Price',
               value: formatCurrency(stats.totalValue),
               icon: TrendingUp,
               color: 'from-green-600 to-green-800'
@@ -221,6 +289,9 @@ export default function DashboardClient({ user }: Props) {
                     <div>
                       <p className="font-semibold text-gray-900">{product.name}</p>
                       <p className="text-sm text-gray-600">SKU: {product.sku}</p>
+                      <p className="text-xs text-gray-500">
+                        Purchase cost: {product.costPrice == null ? 'Not set' : formatCurrency(product.costPrice)}
+                      </p>
                     </div>
                     <div className="text-right">
                       <p className="font-semibold text-gray-900">Stock: {product.quantity}</p>
@@ -238,18 +309,13 @@ export default function DashboardClient({ user }: Props) {
           <div className="bg-white dark:bg-slate-900 rounded-lg shadow-lg p-6 mb-6 border border-gray-200 dark:border-slate-700">
             <h2 className="text-xl font-bold text-gray-900 dark:text-slate-100 mb-4">Expense Summary</h2>
             <div className="rounded-3xl border border-orange-200 bg-orange-50 p-5">
-              <p className="text-sm font-medium text-orange-700">This month</p>
-              <p className="mt-3 text-3xl font-bold text-orange-900">
-                {formatCurrency(expenseSummary.total)}
+              <p className="text-sm font-medium text-orange-700">
+                {reportRange === 'today' ? 'Today' : reportRange === 'week' ? 'Last 7 days' : 'This month'}
               </p>
-              <p className="mt-2 text-sm text-gray-600">{expenseSummary.count} expense{expenseSummary.count !== 1 ? 's' : ''}</p>
-              {expenseSummary.latest ? (
-                <p className="mt-4 text-sm text-gray-700">
-                  Latest: {expenseSummary.latest.category} • {formatCurrency(expenseSummary.latest.amount)}
-                </p>
-              ) : (
-                <p className="mt-4 text-sm text-gray-700">No expenses logged this month.</p>
-              )}
+              <p className="mt-3 text-3xl font-bold text-orange-900">
+                {financialSummary ? formatCurrency(financialSummary.totalExpenses) : '—'}
+              </p>
+              <p className="mt-2 text-sm text-gray-600">Recorded operating expenses</p>
               <button
                 onClick={handleViewExpenses}
                 className="mt-6 w-full rounded-lg bg-white px-4 py-3 text-sm font-semibold text-orange-700 shadow-sm hover:bg-orange-50 transition-colors"

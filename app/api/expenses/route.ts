@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
+import { validateExpenseInput } from '@/lib/expenseInput';
 
 function parseRange(range: string | null) {
   const now = new Date();
@@ -32,33 +33,6 @@ type ExpenseRow = {
   note: string | null;
   createdAt: string;
 };
-
-function validateExpenseInput(body: any) {
-  const errors: string[] = [];
-  const amount = Number(body?.amount);
-  const category = typeof body?.category === 'string' ? body.category.trim() : '';
-  const note = typeof body?.note === 'string' ? body.note.trim() : null;
-
-  if (!Number.isFinite(amount) || Number.isNaN(amount) || amount <= 0) {
-    errors.push('Amount must be a positive number');
-  }
-
-  if (!category) {
-    errors.push('Category is required');
-  } else if (category.length > 100) {
-    errors.push('Category must be 100 characters or fewer');
-  }
-
-  if (note && note.length > 1000) {
-    errors.push('Note must be 1000 characters or fewer');
-  }
-
-  return {
-    ok: errors.length === 0,
-    errors,
-    parsed: { amount, category, note },
-  } as const;
-}
 
 function sanitizeExpenseRow(row: any): ExpenseRow | null {
   if (!row || typeof row !== 'object') return null;

@@ -16,6 +16,7 @@ export default function AddProductForm({ onClose, onSubmit, initialProduct }: Ad
     name: initialProduct?.name || '',
     description: initialProduct?.description || '',
     price: initialProduct?.price || 0,
+    costPrice: initialProduct?.costPrice ?? '',
     quantity: initialProduct?.quantity || 0,
     sku: initialProduct?.sku || '',
     category: initialProduct?.category || '',
@@ -25,14 +26,26 @@ export default function AddProductForm({ onClose, onSubmit, initialProduct }: Ad
     const { name, value } = e.target;
     setFormData((prev) => ({
       ...prev,
-      [name]: name === 'price' || name === 'quantity' ? parseFloat(value) : value,
+      [name]: name === 'price' || name === 'costPrice' || name === 'quantity'
+        ? value === '' ? '' : parseFloat(value)
+        : value,
     }));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const costPrice = formData.costPrice === '' ? Number.NaN : Number(formData.costPrice);
 
-    if (!formData.name || !formData.sku || formData.price <= 0 || formData.quantity < 0) {
+    if (
+      !formData.name ||
+      !formData.sku ||
+      !Number.isFinite(formData.price) ||
+      formData.price <= 0 ||
+      !Number.isFinite(costPrice) ||
+      costPrice < 0 ||
+      !Number.isInteger(formData.quantity) ||
+      formData.quantity < 0
+    ) {
       alert('Please fill in all required fields with valid values');
       return;
     }
@@ -40,6 +53,7 @@ export default function AddProductForm({ onClose, onSubmit, initialProduct }: Ad
     const product: Product = {
       id: initialProduct?.id || generateId(),
       ...formData,
+      costPrice,
       createdAt: initialProduct?.createdAt || new Date(),
       updatedAt: new Date(),
     };
@@ -140,6 +154,22 @@ export default function AddProductForm({ onClose, onSubmit, initialProduct }: Ad
                 type="number"
                 name="price"
                 value={formData.price || 0}
+                onChange={handleChange}
+                placeholder="0.00"
+                step="0.01"
+                min="0"
+                className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Purchase Cost per Unit (₦) *
+              </label>
+              <input
+                type="number"
+                name="costPrice"
+                value={formData.costPrice}
                 onChange={handleChange}
                 placeholder="0.00"
                 step="0.01"

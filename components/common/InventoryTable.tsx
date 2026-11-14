@@ -56,6 +56,7 @@ export default function InventoryTable({ products, onEdit, onDelete }: Inventory
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">SKU</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Price</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Purchase Cost</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantity</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total Value</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
@@ -70,6 +71,9 @@ export default function InventoryTable({ products, onEdit, onDelete }: Inventory
                   <td className="px-6 py-4 text-sm text-gray-600">{product.sku}</td>
                   <td className="px-6 py-4 text-sm text-gray-600">{product.category}</td>
                   <td className="px-6 py-4 text-sm text-gray-600">{formatCurrency(product.price)}</td>
+                  <td className="px-6 py-4 text-sm text-gray-600">
+                    {product.costPrice == null ? 'Not set' : formatCurrency(product.costPrice)}
+                  </td>
                   <td className="px-6 py-4 text-sm">
                     <div className="flex items-center gap-2">
                       {isLowStock && <AlertCircle size={16} className="text-red-500" />}

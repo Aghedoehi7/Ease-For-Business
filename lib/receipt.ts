@@ -17,6 +17,9 @@ export function normalizeReceiptItems(items: any[]): ReceiptItem[] {
       price,
       quantity,
       subtotal: price * quantity,
+      costPrice: item.costPrice ?? null,
+      costOfGoodsSold: item.costOfGoodsSold ?? null,
+      grossProfit: item.grossProfit ?? null,
     };
   });
 }
@@ -28,6 +31,8 @@ export async function generatePDFReceipt(transaction: any) {
 
   // Get the total amount (handle both total and totalAmount fields)
   const totalAmount = transaction.totalAmount || transaction.total || 0;
+  const cogs = transaction.costOfGoodsSold;
+  const grossProfit = transaction.grossProfit;
   const businessName = transaction.businessName || 'My Business';
 
   // Create a temporary container for the receipt HTML
@@ -95,6 +100,14 @@ export async function generatePDFReceipt(transaction: any) {
           <div style="display: flex; justify-content: space-between; padding: 10px 0; border-top: 2px solid #333; border-bottom: 1px solid #ddd;">
             <span style="font-weight: bold;">Subtotal:</span>
             <span>₦${totalAmount.toFixed(2)}</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; padding: 8px 0;">
+            <span>Cost of goods sold:</span>
+            <span>${cogs == null ? 'Unavailable' : `₦${Number(cogs).toFixed(2)}`}</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #ddd;">
+            <span>Gross profit:</span>
+            <span>${grossProfit == null ? 'Unavailable' : `₦${Number(grossProfit).toFixed(2)}`}</span>
           </div>
           <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 2px solid #333;">
             <span style="font-weight: bold; font-size: 16px;">TOTAL:</span>

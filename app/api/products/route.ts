@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
+import { parseProductInput } from '@/lib/productInput';
 
 export async function GET(req: NextRequest) {
   try {
@@ -29,19 +30,17 @@ export async function POST(request: NextRequest) {
   try {
     const user = await requireAuth(request);
 
-    const body = await request.json();
-    const { name, description, price, quantity, sku, category } = body;
-
-    if (!name || !sku || !price || quantity === undefined) {
+    const input = parseProductInput(await request.json());
+    if (!input) {
       return NextResponse.json(
-        { error: 'Missing required fields' },
+        { error: 'Enter a name, SKU, selling price above zero, non-negative purchase cost, and whole-number stock quantity.' },
         { status: 400 }
       );
     }
 
     // Check if SKU already exists for this user
     const existing = await prisma.product.findFirst({
-      where: { sku, userId: user.id },
+      where: { sku: input.sku, userId: user.id },
     });
     if (existing) {
       return NextResponse.json(
@@ -53,12 +52,7 @@ export async function POST(request: NextRequest) {
     const newProduct = await prisma.product.create({
       data: {
         userId: user.id,
-        name,
-        description,
-        price: parseFloat(price),
-        quantity: parseInt(quantity),
-        sku,
-        category,
+        ...input,
       },
     });
 
