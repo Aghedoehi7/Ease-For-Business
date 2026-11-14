@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
+
+export const dynamic = 'force-dynamic';
 import { validateExpenseInput } from '@/lib/expenseInput';
 
 export async function PUT(

@@ -3,6 +3,8 @@ import crypto from 'crypto';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { requireAuth } from '@/lib/auth';
+
+export const dynamic = 'force-dynamic';
 import { validateExpenseInput } from '@/lib/expenseInput';
 
 function parseRange(range: string | null) {
